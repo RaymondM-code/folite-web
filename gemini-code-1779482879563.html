@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>High-End 3D Gallery</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <style>
+        /* CSS Reset & Premium Typography */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background-color: #0a0a0a;
+            color: #ffffff;
+            overflow-x: hidden;
+        }
+
+        /* The Three.js Canvas */
+        #webgl-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 0;
+            pointer-events: auto; /* Allow 3D interaction */
+        }
+
+        /* UI Overlay - Pointer events none so you can drag the 3D scene behind it */
+        .ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        /* Header / Navbar */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 40px 60px;
+            pointer-events: auto;
+        }
+        .logo {
+            font-size: 14px;
+            font-weight: bold;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+        }
+        .nav-links {
+            display: flex;
+            gap: 40px;
+            font-size: 12px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            cursor: pointer;
+        }
+        .nav-links span:hover {
+            color: #bfa15f;
+            transition: color 0.3s;
+        }
+
+        /* Hero Text Container */
+        .hero-text {
+            padding-left: 60px;
+            margin-top: 10vh;
+        }
+        .hero-text h1 {
+            font-size: 64px;
+            font-weight: 300;
+            letter-spacing: 2px;
+            margin-bottom: 20px;
+        }
+        .hero-text p {
+            font-size: 14px;
+            color: #888;
+            max-width: 400px;
+            line-height: 1.6;
+            letter-spacing: 1px;
+        }
+
+        /* Interactive Controls Footer */
+        .footer-controls {
+            padding: 40px 60px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            pointer-events: auto;
+        }
+        .material-selector {
+            display: flex;
+            gap: 20px;
+        }
+        .mat-btn {
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: #fff;
+            padding: 15px 30px;
+            font-size: 11px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.3s;
+            backdrop-filter: blur(5px);
+        }
+        .mat-btn:hover {
+            background: #fff;
+            color: #000;
+        }
+
+        /* Scroll Indicator */
+        .scroll-indicator {
+            font-size: 10px;
+            letter-spacing: 3px;
+            color: #666;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .line {
+            width: 40px;
+            height: 1px;
+            background: #666;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 3D Canvas Background -->
+    <div id="webgl-container"></div>
+
+    <!-- UI Overlay Layer -->
+    <div class="ui-layer">
+        
+        <header>
+            <div class="logo">LUXE STUDIO</div>
+            <div class="nav-links">
+                <span>Collections</span>
+                <span>Exhibitions</span>
+                <span>Contact</span>
+            </div>
+        </header>
+
+        <div class="hero-text">
+            <h1 id="title">VIRTUAL<br>GALLERY</h1>
+            <p>Drag to explore the architectural space. Select below to swap materials in real-time.</p>
+        </div>
+
+        <div class="footer-controls">
+            <div class="material-selector">
+                <button class="mat-btn" onclick="changeMaterial('concrete')">Raw Concrete</button>
+                <button class="mat-btn" onclick="changeMaterial('wood')">Dark Walnut</button>
+                <button class="mat-btn" onclick="changeMaterial('marble')">White Marble</button>
+            </div>
+            <div class="scroll-indicator">
+                <span>Explore Space</span>
+                <div class="line"></div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // 1. Setup Scene, Camera, Renderer
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x0a0a0a, 0.015);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(-10, 4, 15); // Start off-center for cinematic sweep
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.getElementById('webgl-container').appendChild(renderer.domElement);
+
+        // 2. Controls
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.maxPolarAngle = Math.PI / 2 - 0.1; // Don't clip below floor
+        controls.minDistance = 5;
+        controls.maxDistance = 25;
+
+        // 3. Premium Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(10, 15, 10);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 2048;
+        dirLight.shadow.mapSize.height = 2048;
+        scene.add(dirLight);
+
+        const pointLight = new THREE.PointLight(0xd4af37, 1); // Subtle gold accent light
+        pointLight.position.set(-5, 5, -5);
+        scene.add(pointLight);
+
+        // 4. Build Gallery Architecture (Walls & Floor)
+        const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.8 });
+        
+        const floorGeo = new THREE.PlaneGeometry(100, 100);
+        const floor = new THREE.Mesh(floorGeo, wallMaterial);
+        floor.rotation.x = -Math.PI / 2;
+        floor.receiveShadow = true;
+        scene.add(floor);
+
+        const backWall = new THREE.Mesh(new THREE.PlaneGeometry(100, 40), wallMaterial);
+        backWall.position.set(0, 20, -15);
+        backWall.receiveShadow = true;
+        scene.add(backWall);
+
+        // 5. The Display Object & Pedestal
+        const pedestalGeo = new THREE.CylinderGeometry(1.5, 1.5, 1, 32);
+        const pedestal = new THREE.Mesh(pedestalGeo, wallMaterial);
+        pedestal.position.set(0, 0.5, 0);
+        pedestal.receiveShadow = true;
+        pedestal.castShadow = true;
+        scene.add(pedestal);
+
+        // Object on display
+        const displayGeo = new THREE.IcosahedronGeometry(2, 0); // Geometric modern art
+        
+        // Material Library
+        const materials = {
+            concrete: new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.9, metalness: 0.1, flatShading: true }),
+            wood: new THREE.MeshStandardMaterial({ color: 0x3d2314, roughness: 0.6, metalness: 0.1, flatShading: true }),
+            marble: new THREE.MeshStandardMaterial({ color: 0xeeeeee, roughness: 0.1, metalness: 0.1, flatShading: true })
+        };
+
+        const displayObject = new THREE.Mesh(displayGeo, materials.concrete);
+        displayObject.position.set(0, 3.5, 0);
+        displayObject.castShadow = true;
+        scene.add(displayObject);
+
+        // 6. Interaction Logic
+        window.changeMaterial = function(matType) {
+            const newMat = materials[matType];
+            
+            // GSAP color and texture transition
+            gsap.to(displayObject.material.color, {
+                r: newMat.color.r,
+                g: newMat.color.g,
+                b: newMat.color.b,
+                duration: 1.2,
+                ease: "power2.out"
+            });
+            gsap.to(displayObject.material, {
+                roughness: newMat.roughness,
+                metalness: newMat.metalness,
+                duration: 1.2,
+                ease: "power2.out"
+            });
+
+            // Small bounce effect on swap
+            gsap.fromTo(displayObject.position, 
+                { y: 3.2 }, 
+                { y: 3.5, duration: 1, ease: "elastic.out(1, 0.3)" }
+            );
+        };
+
+        // 7. Cinematic Intro (Camera Pan)
+        gsap.to(camera.position, {
+            x: 0,
+            y: 4,
+            z: 12,
+            duration: 3,
+            ease: "power3.inOut",
+            onUpdate: () => camera.lookAt(displayObject.position)
+        });
+
+        // 8. Animation Loop
+        const clock = new THREE.Clock();
+        function animate() {
+            requestAnimationFrame(animate);
+            const time = clock.getElapsedTime();
+            
+            // Subtle rotation of the art piece
+            displayObject.rotation.y = time * 0.2;
+            displayObject.rotation.x = time * 0.1;
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // 9. Resize Handling
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
